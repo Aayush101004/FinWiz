@@ -110,7 +110,8 @@ async def get_financial_advice(request: models.AdviceRequest, db: Session = Depe
         transactions = db.query(models.Transaction).all()
         # Convert to TransactionResponse for the service if needed
         txns = [models.TransactionResponse.from_orm(t) for t in transactions]
-        advice = await services.get_ai_financial_advice(txns, request.prompt)
+        # --- MODIFIED LINE ---
+        advice = await services.get_financial_advice_from_ai(txns, request.prompt) # <-- Call the correct, powerful function
         return models.AdviceResult(advice=advice)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

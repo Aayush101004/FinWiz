@@ -18,11 +18,16 @@ const COLORS = [
     '#334155', // slate blue (Uncategorized)
 ];
 
+// Currency formatter for Indian Rupee
+const currencyFormatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
+
 function App() {
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [chatHistory, setChatHistory] = useState([]);
+    const [chatHistory, setChatHistory] = useState([
+        { role: 'assistant', text: "Hello! I'm FinWiz, your personal financial advisor. How can I help you today?" }
+    ]);
     const [userInput, setUserInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [showNewTransactionModal, setShowNewTransactionModal] = useState(false);
@@ -60,24 +65,29 @@ function App() {
 
         const newHistory = [...chatHistory, { role: 'user', text: userInput }];
         setChatHistory(newHistory);
+        const currentInput = userInput; // Capture current input
         setUserInput('');
         setIsTyping(true);
 
         try {
-            // send a single description as expected by the backend CategorizationRequest
-            const response = await fetch('/api/categorize', {
+            // Send the user's prompt to the /api/advice endpoint
+            const response = await fetch('/api/advice', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description: userInput }),
+                body: JSON.stringify({ prompt: currentInput }), // Send 'prompt'
             });
+
             if (!response.ok) {
                 // capture validation errors (422) and others
                 const txt = await response.text();
                 throw new Error(`API error! status: ${response.status} ${txt}`);
             }
+
             const data = await response.json();
-            const assistantText = `Category: **${data.category}** (confidence: ${(data.confidence ?? 0).toFixed(2)})`;
+            // The response is now the raw markdown advice from the AI
+            const assistantText = data.advice;
             setChatHistory([...newHistory, { role: 'assistant', text: assistantText }]);
+
         } catch (error) {
             setChatHistory([...newHistory, { role: 'assistant', text: `Sorry, I encountered an error: ${error.message}` }]);
         } finally {
@@ -122,29 +132,29 @@ function App() {
                 <div>
                     <div className="card">
                         <h2>Spending Overview</h2>
-                        <div style={{height:300}}>
+                        <div style={{ height: 300 }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
-                                    <Pie 
-                                        data={pieData} 
-                                        cx="50%" 
-                                        cy="50%" 
-                                        outerRadius={100} 
-                                        fill="#8884d8" 
-                                        dataKey="value" 
+                                    <Pie
+                                        data={pieData}
+                                        cx="50%"
+                                        cy="50%"
+                                        outerRadius={100}
+                                        fill="#8884d8"
+                                        dataKey="value"
                                         nameKey="name"
                                     >
                                         {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                     </Pie>
-                                    <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+                                    <Tooltip formatter={(value) => currencyFormatter.format(value)} />
                                     <Legend layout="vertical" align="right" verticalAlign="middle" />
                                 </PieChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
 
-                    <div className="card" style={{marginTop:16}}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                    <div className="card" style={{ marginTop: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                             <h2>Recent Transactions</h2>
                             <button className="primary" onClick={() => setShowNewTransactionModal(true)}>+ Add Transaction</button>
                         </div>
@@ -182,7 +192,7 @@ function App() {
                                             <input
                                                 type="date"
                                                 value={newTransaction.date}
-                                                onChange={e => setNewTransaction({...newTransaction, date: e.target.value})}
+                                                onChange={e => setNewTransaction({ ...newTransaction, date: e.target.value })}
                                                 required
                                             />
                                         </div>
@@ -191,7 +201,7 @@ function App() {
                                             <input
                                                 type="text"
                                                 value={newTransaction.description}
-                                                onChange={e => setNewTransaction({...newTransaction, description: e.target.value})}
+                                                onChange={e => setNewTransaction({ ...newTransaction, description: e.target.value })}
                                                 required
                                             />
                                         </div>
@@ -201,7 +211,7 @@ function App() {
                                                 type="number"
                                                 step="0.01"
                                                 value={newTransaction.amount}
-                                                onChange={e => setNewTransaction({...newTransaction, amount: e.target.value})}
+                                                onChange={e => setNewTransaction({ ...newTransaction, amount: e.target.value })}
                                                 required
                                             />
                                         </div>
@@ -209,7 +219,7 @@ function App() {
                                             <label>Category</label>
                                             <select
                                                 value={newTransaction.category}
-                                                onChange={e => setNewTransaction({...newTransaction, category: e.target.value})}
+                                                onChange={e => setNewTransaction({ ...newTransaction, category: e.target.value })}
                                                 required
                                             >
                                                 <option value="">Select a category...</option>
@@ -232,14 +242,14 @@ function App() {
                                 </div>
                             </div>
                         )}
-                        <div style={{overflowX:'auto'}}>
+                        <div style={{ overflowX: 'auto' }}>
                             <table className="transactions-table">
                                 <thead>
                                     <tr>
                                         <th>Date</th>
                                         <th>Description</th>
                                         <th>Category</th>
-                                        <th style={{textAlign:'right'}}>Amount</th>
+                                        <th style={{ textAlign: 'right' }}>Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -247,8 +257,8 @@ function App() {
                                         <tr key={t.id}>
                                             <td>{t.date}</td>
                                             <td>{t.description}</td>
-                                            <td><span className={`badge ${t.category ? t.category.toLowerCase().replace(/\s+/g,'') : 'uncategorized'}`}>{t.category || 'N/A'}</span></td>
-                                            <td className="amount">${Math.abs(t.amount).toFixed(2)}</td>
+                                            <td><span className={`badge ${t.category ? t.category.toLowerCase().replace(/\s+/g, '') : 'uncategorized'}`}>{t.category || 'N/A'}</span></td>
+                                            <td className="amount">{currencyFormatter.format(Math.abs(t.amount))}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -261,19 +271,30 @@ function App() {
                     <div className="card chat">
                         <h3>AI Advisor</h3>
                         <div className="chat-history">
-                            {chatHistory.map((msg, index) => (
-                                <div key={index} style={{display:'flex',justifyContent: msg.role==='user' ? 'flex-end':'flex-start'}}>
-                                    <div style={{maxWidth:360,background: msg.role==='user' ? 'linear-gradient(90deg,var(--accent),var(--accent-2))' : 'rgba(255,255,255,0.03)',color: msg.role==='user' ? '#042046': 'var(--text)',padding:10,borderRadius:10,marginBottom:8}}>
-                                        <div className="prose prose-invert prose-sm">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                            {chatHistory.map((msg, index) => {
+                                const isUser = msg.role === 'user';
+                                return (
+                                    <div key={index} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
+                                        <div style={{ 
+                                            maxWidth: 360, 
+                                            background: isUser ? 'linear-gradient(90deg,var(--accent),var(--accent-2))' : 'rgba(255,255,255,0.03)', 
+                                            color: isUser ? '#042046' : 'var(--text)', 
+                                            padding: isUser ? '2px 8px' : 10, 
+                                            borderRadius: 8,
+                                            marginBottom: 6,
+                                            lineHeight: isUser ? 0.8 : 1.5
+                                        }}>
+                                            <div className="prose prose-invert prose-sm" style={{ margin: 0 }}>
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                             {isTyping && <div className="muted">Thinking...</div>}
                         </div>
                         <form onSubmit={handleSendMessage} className="chat-input">
-                            <input type="text" value={userInput} onChange={(e)=>setUserInput(e.target.value)} placeholder="Ask about your finances..." disabled={isTyping} />
+                            <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Ask about your finances..." disabled={isTyping} />
                             <button type="submit" disabled={isTyping}>Send</button>
                         </form>
                     </div>
